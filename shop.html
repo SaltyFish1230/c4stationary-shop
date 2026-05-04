@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>C4文具店</title>
+
+<style>
+body { font-family: Arial; margin:0; background:#f5f5f5; }
+
+.header {
+  background:#333;
+  color:white;
+  padding:15px;
+  display:flex;
+  justify-content:space-between;
+}
+
+.products {
+  display:grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px,1fr));
+  gap:15px;
+  padding:15px;
+}
+
+.card {
+  background:white;
+  padding:10px;
+  border-radius:10px;
+  text-align:center;
+}
+
+.card img {
+  width:100%;
+  height:120px;
+  object-fit:cover;
+  border-radius:8px;
+}
+
+button {
+  padding:10px;
+  margin:5px;
+}
+
+.cart {
+  position:fixed;
+  right:0;
+  top:0;
+  width:300px;
+  height:100%;
+  background:white;
+  padding:15px;
+  overflow:auto;
+}
+
+/* 手机适配 */
+@media (max-width:600px){
+  .products { grid-template-columns:1fr; }
+  button { width:100%; font-size:18px; }
+  input,select { width:100%; padding:10px; }
+  .cart {
+    width:100%;
+    height:50%;
+    bottom:0;
+    top:auto;
+  }
+}
+</style>
+
+</head>
+
+<body>
+
+<div class="header">
+<h2>🛒 C4文具店</h2>
+<div onclick="toggleCart()">购物车 (<span id="count">0</span>)</div>
+</div>
+
+<select id="categoryFilter" onchange="renderProducts()">
+<option value="">全部分类</option>
+</select>
+
+<div class="products" id="products"></div>
+
+<div class="cart" id="cartBox" style="display:none">
+<h3>购物车</h3>
+<div id="cart"></div>
+
+<input id="name" placeholder="你的名字"><br><br>
+
+<label><input type="checkbox" id="wrap"> 礼物包装（免费）</label><br><br>
+
+<select id="payment">
+<option value="现金">现金</option>
+</select><br><br>
+
+<input id="coupon" placeholder="优惠码">
+<button onclick="applyCoupon()">使用</button>
+
+<h3 id="total"></h3>
+<button onclick="checkout()">结账</button>
+</div>
+
+<script>
+
+let products = JSON.parse(localStorage.getItem("products")) || [];
+let coupons = JSON.parse(localStorage.getItem("coupons")) || {};
+let cart = JSON.parse(localStorage.getItem("cart")) || [];
+
+let discount = 0;
+let usedCoupon = "";
+
+// 分类
+function loadCategories(){
+  const select = document.getElementById("categoryFilter");
+  select.innerHTML = '<option value="">全部分类</option>';
+  let categories = [...new Set(products.map(p=>p.category))];
+  categories.forEach(c=>{
+    if(c) select.innerHTML += `<option value="${c}">${c}</option>`;
+  });
+}
+
+function save(){ localStorage.setItem("cart", JSON.stringify(cart)); }
+
+// 商品渲染（带图片🔥）
+function renderProducts(){
+  const div = document.getElementById("products");
+  div.innerHTML = "";
+
+  const filter = document.getElementById("categoryFilter").value;
+
+  products
+  .filter(p => !filter || p.category === filter)
+  .forEach(p=>{
+    div.innerHTML += `
+      <div class="card">
+        <img src="${p.img || 'https://via.placeholder.com/200'}">
+        <h3>${p.name}</h3>
+        <p>${p.category || "无分类"}</p>
+        <p>RM ${p.price}</p>
+        <button onclick="add(${p.id})">加入购物车</button>
+      </div>
+    `;
+  });
+}
+
+function add(id){
+  const item = cart.find(i=>i.id===id);
+  if(item) item.qty++;
+  else cart.push({id,qty:1});
+  save(); renderCart();
+}
+
+function renderCart(){
+  let total=0, count=0;
+  const div=document.getElementById("cart");
+  div.innerHTML="";
+
+  cart.forEach(i=>{
+    const p=products.find(x=>x.id===i.id);
+    if(!p) return;
+    total+=p.price*i.qty;
+    count+=i.qty;
+
+    div.innerHTML+=`
+      <div>
+        ${p.name} × ${i.qty}
+        <button onclick="change(${i.id},1)">+</button>
+        <button onclick="change(${i.id},-1)">-</button>
+      </div>`;
+  });
+
+  document.getElementById("count").innerText=count;
+
+  let final = total*(1-discount);
+  document.getElementById("total").innerText=`RM${total} → RM${final.toFixed(2)}`;
+}
+
+function change(id,d){
+  const item=cart.find(i=>i.id===id);
+  item.qty+=d;
+  if(item.qty<=0) cart=cart.filter(i=>i.id!==id);
+  save(); renderCart();
+}
+
+function applyCoupon(){
+  const code=document.getElementById("coupon").value;
+  const now=new Date();
+
+  if(coupons[code]){
+    const c=coupons[code];
+
+    if(now < new Date(c.start) || now > new Date(c.end)){
+      alert("优惠券已过期或未开始");
+      return;
+    }
+
+    discount=c.value;
+    usedCoupon=code;
+    alert("优惠成功");
+  } else alert("无效优惠码");
+
+  renderCart();
+}
+
+function checkout(){
+  const name=document.getElementById("name").value;
+
+  if(!name || cart.length===0){
+    alert("信息不完整");
+    return;
+  }
+
+  alert("下单成功！");
+  cart=[]; discount=0; usedCoupon="";
+  save(); renderCart();
+}
+
+function toggleCart(){
+  const box=document.getElementById("cartBox");
+  box.style.display = box.style.display==="none"?"block":"none";
+}
+
+loadCategories();
+renderProducts();
+renderCart();
+
+</script>
+
+</body>
+</html>

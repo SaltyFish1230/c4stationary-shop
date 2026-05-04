@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<title>后台</title>
+<style>
+body { font-family: Arial; margin:20px; }
+.box { border:1px solid #ccc; padding:10px; margin:10px; }
+</style>
+</head>
+<body>
+
+<h1>⚙️ 后台管理</h1>
+
+<!-- 商品 -->
+
+<h2>商品（带图片🔥）</h2>
+<input id="pname" placeholder="商品名">
+<input id="pprice" placeholder="价格">
+<input id="pcategory" placeholder="分类">
+<input id="pimg" type="file" accept="image/*">
+<button onclick="addProduct()">添加</button>
+
+<div id="products"></div>
+
+<!-- 优惠券 -->
+
+<h2>优惠券（带时间）</h2>
+<input id="cname" placeholder="优惠码">
+<input id="cvalue" placeholder="折扣 0.1=10%">
+<br>
+开始时间: <input id="cstart" type="datetime-local">
+结束时间: <input id="cend" type="datetime-local">
+<button onclick="addCoupon()">添加</button>
+
+<div id="coupons"></div>
+
+<!-- 订单 -->
+
+<h2>订单</h2>
+<div id="orders"></div>
+
+<script>
+
+let products = JSON.parse(localStorage.getItem("products")) || [];
+let coupons = JSON.parse(localStorage.getItem("coupons")) || {};
+let orders = JSON.parse(localStorage.getItem("orders")) || [];
+
+// 保存
+function saveProducts(){
+  localStorage.setItem("products", JSON.stringify(products));
+}
+function saveCoupons(){
+  localStorage.setItem("coupons", JSON.stringify(coupons));
+}
+
+// 🛍 商品
+function addProduct(){
+  const name = document.getElementById("pname").value.trim();
+  const price = parseFloat(document.getElementById("pprice").value);
+  const category = document.getElementById("pcategory").value.trim();
+  const file = document.getElementById("pimg").files[0];
+
+  if(name === "" || isNaN(price)){
+    alert("请输入正确商品信息");
+    return;
+  }
+
+  // 没选图片
+  if(!file){
+    saveProduct(name, price, category, "");
+    return;
+  }
+
+  // 读取图片🔥
+  const reader = new FileReader();
+
+  reader.onload = function(e){
+    const base64 = e.target.result;
+    saveProduct(name, price, category, base64);
+  };
+
+  reader.readAsDataURL(file);
+}
+
+// 保存函数（拆出来更清晰）
+function saveProduct(name, price, category, img){
+  products.push({
+    id: Date.now(),
+    name,
+    price,
+    category,
+    img
+  });
+
+  localStorage.setItem("products", JSON.stringify(products));
+  renderProducts();
+}
+
+function renderProducts(){
+  const div = document.getElementById("products");
+  div.innerHTML = "";
+
+  products.forEach(p=>{
+    div.innerHTML += `
+      <div class="box">
+        <b>${p.name}</b> - RM${p.price}<br>
+        分类: ${p.category || "无"}<br>
+        ${p.img ? `<img src="${p.img}" width="100">` : "无图片"}<br><br>
+
+        <button onclick="deleteProduct(${p.id})">❌ 删除</button>
+      </div>`;
+  });
+}
+
+function deleteProduct(id){
+  if(!confirm("确定要删除这个商品吗？")) return;
+
+  products = products.filter(p => p.id !== id);
+
+  localStorage.setItem("products", JSON.stringify(products));
+
+  renderProducts();
+}
+
+// 🎟 优惠券
+function addCoupon(){
+  const name = document.getElementById("cname").value.trim();
+  const val = parseFloat(document.getElementById("cvalue").value);
+  const start = document.getElementById("cstart").value;
+  const end = document.getElementById("cend").value;
+
+  if(name === "" || isNaN(val) || !start || !end){
+    alert("请填完整优惠券信息");
+    return;
+  }
+
+  coupons[name] = {
+    value: val,
+    start,
+    end
+  };
+
+  saveCoupons();
+  renderCoupons();
+}
+
+function renderCoupons(){
+  const div = document.getElementById("coupons");
+  div.innerHTML = "";
+
+  Object.keys(coupons).forEach(code=>{
+    const c = coupons[code];
+
+    div.innerHTML += `
+      <div class="box">
+        <b>${code}</b> - ${c.value*100}%<br>
+        时间: ${c.start} ~ ${c.end}
+      </div>`;
+  });
+}
+
+// 📦 订单
+function renderOrders(){
+  const div = document.getElementById("orders");
+  div.innerHTML = "";
+
+  if(orders.length === 0){
+    div.innerHTML = "暂无订单";
+    return;
+  }
+
+  orders.forEach(o=>{
+    div.innerHTML += `
+      <div class="box">
+        👤 用户: ${o.name}<br>
+        🛍 商品: ${o.items.map(i=>i.name+"×"+i.qty).join(",")}<br>
+        💳 支付: ${o.payment}<br>
+        🎁 包装: ${o.wrap ? "是" : "否"}<br>
+        🎟 优惠: ${o.coupon || "无"}<br>
+        💰 总价: RM${o.total}<br>
+        🕒 时间: ${o.time}
+      </div>`;
+  });
+}
+
+// 初始化
+renderProducts();
+renderCoupons();
+renderOrders();
+
+</script>
+
+</body>
+</html>
