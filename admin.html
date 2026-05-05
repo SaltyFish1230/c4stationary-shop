@@ -15,13 +15,35 @@
 
 <h2>后台</h2>
 
-<input id="name" placeholder="商品名">
+<h3>商品</h3>
+<input id="name" placeholder="名称">
 <input id="price" placeholder="价格">
 <input id="stock" placeholder="库存">
+<input id="category" placeholder="分类">
+<input id="barcode" placeholder="条码">
+<input id="img" placeholder="图片URL">
 
-<button onclick="addProduct()">添加商品</button>
+<label>
+<input type="checkbox" id="enabled" checked> 上架
+</label>
 
-<div id="list"></div>
+<h4>限时优惠</h4>
+<input id="salePrice" placeholder="优惠价">
+<input type="datetime-local" id="saleStart">
+<input type="datetime-local" id="saleEnd">
+
+<button onclick="addProduct()">添加</button>
+
+<h3>公告</h3>
+<input id="notice">
+<button onclick="setNotice()">发布</button>
+
+<h3>优惠券</h3>
+<input id="code" placeholder="CODE">
+<input id="discount" placeholder="0.1">
+<input type="datetime-local" id="cstart">
+<input type="datetime-local" id="cend">
+<button onclick="addCoupon()">添加</button>
 
 <script>
 
@@ -46,38 +68,55 @@ const firebaseConfig = {
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
 const analytics = getAnalytics(app);
-
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 
-// 添加商品
+// 商品
 async function addProduct(){
-  const name = document.getElementById("name").value;
-  const price = parseFloat(document.getElementById("price").value);
-  const stock = parseInt(document.getElementById("stock").value);
+
+  let sale = null;
+
+  let sp = parseFloat(document.getElementById("salePrice").value);
+  let ss = document.getElementById("saleStart").value;
+  let se = document.getElementById("saleEnd").value;
+
+  if(!isNaN(sp) && ss && se){
+    sale = {price:sp,start:ss,end:se};
+  }
 
   await db.collection("products").add({
-    name,
-    price,
-    stock
+    name: name.value,
+    price: parseFloat(price.value),
+    stock: parseInt(stock.value),
+    category: category.value,
+    barcode: barcode.value,
+    img: img.value,
+    enabled: enabled.checked,
+    sale
   });
 }
 
-// 实时显示
-db.collection("products").onSnapshot(snapshot=>{
-  const div = document.getElementById("list");
-  div.innerHTML = "";
+// 公告
+async function setNotice(){
+  let snap = await db.collection("notices").get();
 
-  snapshot.forEach(doc=>{
-    const p = doc.data();
+  if(snap.empty){
+    await db.collection("notices").add({text:notice.value});
+  }else{
+    await db.collection("notices").doc(snap.docs[0].id)
+      .update({text:notice.value});
+  }
+}
 
-    div.innerHTML += `
-      <div>
-        ${p.name} - RM${p.price} - 库存:${p.stock}
-      </div>
-    `;
+// 优惠券
+async function addCoupon(){
+  await db.collection("coupons").add({
+    code: code.value,
+    discount: parseFloat(discount.value),
+    start: cstart.value,
+    end: cend.value
   });
-});
+}
 
 </script>
 
