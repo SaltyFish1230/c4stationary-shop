@@ -4,180 +4,115 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>C4文具店</title>
 
-<style>
-body { font-family: Arial; margin:0; background:#f5f5f5; }
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js"></script>
 
-.header { background:#333; color:white; padding:15px; display:flex; justify-content:space-between; }
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js"></script>
 
-.notice {
-  background:yellow;
-  padding:10px;
-  text-align:center;
-  font-weight:bold;
-}
-
-.products {
-  display:grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px,1fr));
-  gap:15px;
-  padding:15px;
-}
-
-.card { background:white; padding:10px; border-radius:10px; text-align:center; }
-
-.card img {
-  width:100%;
-  height:120px;
-  object-fit:cover;
-}
-
-button { padding:10px; margin:5px; }
-
-.cart {
-  position:fixed;
-  right:0;
-  top:0;
-  width:300px;
-  height:100%;
-  background:white;
-  padding:15px;
-  overflow:auto;
-}
-
-@media (max-width:600px){
-  .products { grid-template-columns:1fr; }
-  button { width:100%; }
-  .cart { width:100%; height:50%; bottom:0; top:auto; }
-}
-</style>
-
+<title>Morden Shop</title>
 </head>
 
 <body>
 
-<div class="header">
-<h2>🛒 C4文具店</h2>
-<div onclick="toggleCart()">购物车 (<span id="count">0</span>)</div>
-</div>
-
-<div class="notice" id="noticeBox"></div>
-
-<div class="products" id="products"></div>
-
-<div class="cart" id="cartBox" style="display:none">
-<h3>购物车</h3>
-<div id="cart"></div>
-
-<input id="name" placeholder="你的名字"><br><br>
-
-<h3 id="total"></h3>
-<button onclick="checkout()">结账</button>
-</div>
+<h2>🛒 商店</h2>
+<div id="products"></div>
 
 <script>
 
-let products = JSON.parse(localStorage.getItem("products")) || [];
-let cart = JSON.parse(localStorage.getItem("cart")) || [];
+// Import the functions you need from the SDKs you need
+import { initializeApp } from "firebase/app";
+import { getAnalytics } from "firebase/analytics";
+// TODO: Add SDKs for Firebase products that you want to use
+// https://firebase.google.com/docs/web/setup#available-libraries
 
-document.getElementById("noticeBox").innerText =
-  localStorage.getItem("notice") || "暂无公告";
+// Your web app's Firebase configuration
+// For Firebase JS SDK v7.20.0 and later, measurementId is optional
+const firebaseConfig = {
+  apiKey: "AIzaSyB4c50tn2qusku-vKS_70Aox04q7q3G0kg",
+  authDomain: "c4stationary.firebaseapp.com",
+  projectId: "c4stationary",
+  storageBucket: "c4stationary.firebasestorage.app",
+  messagingSenderId: "732705187325",
+  appId: "1:732705187325:web:15a9d0536f123fde2aa594",
+  measurementId: "G-CJG2GQK4GD"
+};
 
-function save(){
-  localStorage.setItem("cart", JSON.stringify(cart));
-}
+// Initialize Firebase
+const app = initializeApp(firebaseConfig);
+const analytics = getAnalytics(app);
 
-function renderProducts(){
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+
+let cart = [];
+
+// 🔥 实时监听商品（关键）
+db.collection("products").onSnapshot(snapshot=>{
   const div = document.getElementById("products");
   div.innerHTML = "";
 
-  products.forEach(p=>{
+  snapshot.forEach(doc=>{
+    const p = doc.data();
+    p.id = doc.id;
 
-    let now = new Date();
-    let price = p.price;
-
-    // 限时优惠🔥
-    if(p.sale){
-      if(now >= new Date(p.sale.start) && now <= new Date(p.sale.end)){
-        price = p.sale.price;
-      }
-    }
-
-    let status = "";
     let disabled = "";
 
     if(p.stock <= 0){
-      status = "❌ 已售空";
-      disabled = "disabled";
-    }
-
-    if(!p.enabled){
-      status = "🚫 已下架";
       disabled = "disabled";
     }
 
     div.innerHTML += `
-      <div class="card">
-        <img src="${p.img || 'https://via.placeholder.com/200'}">
+      <div>
         <h3>${p.name}</h3>
-        <p>条码: ${p.barcode || "-"}</p>
+        <p>RM ${p.price}</p>
+        <p>库存: ${p.stock}</p>
 
-        <p>
-          ${price < p.price ? `<del>RM${p.price}</del> RM${price}` : `RM${price}`}
-        </p>
-
-        <p>${status}</p>
-
-        <button onclick="add(${p.id})" ${disabled}>
-          ${disabled ? "不可购买" : "加入购物车"}
+        <button onclick="add('${p.id}')" ${disabled}>
+          ${p.stock<=0?"已售空":"加入购物车"}
         </button>
       </div>
     `;
   });
-}
+});
 
 function add(id){
-  const item = cart.find(i=>i.id===id);
+  let item = cart.find(i=>i.id===id);
   if(item) item.qty++;
   else cart.push({id,qty:1});
-  save(); renderCart();
 }
 
-function renderCart(){
-  let total=0, count=0;
-  const div=document.getElementById("cart");
-  div.innerHTML="";
+// 🔥 下单扣库存（核心🔥）
+async function checkout(){
 
-  cart.forEach(i=>{
-    const p=products.find(x=>x.id===i.id);
-    if(!p) return;
+  for(let item of cart){
 
-    total+=p.price*i.qty;
-    count+=i.qty;
+    let ref = db.collection("products").doc(item.id);
 
-    div.innerHTML+=`
-      <div>${p.name} × ${i.qty}</div>`;
-  });
+    await db.runTransaction(async (t)=>{
 
-  document.getElementById("count").innerText=count;
-  document.getElementById("total").innerText="RM"+total;
-}
+      const doc = await t.get(ref);
+      const data = doc.data();
 
-function checkout(){
+      if(data.stock < item.qty){
+        alert("库存不足！");
+        return;
+      }
+
+      t.update(ref,{
+        stock: data.stock - item.qty
+      });
+
+    });
+
+  }
+
   alert("下单成功！");
-  cart=[]; save(); renderCart();
+  cart=[];
 }
-
-function toggleCart(){
-  const box=document.getElementById("cartBox");
-  box.style.display = box.style.display==="none"?"block":"none";
-}
-
-renderProducts();
-renderCart();
 
 </script>
+
+<button onclick="checkout()">结账</button>
 
 </body>
 </html>
