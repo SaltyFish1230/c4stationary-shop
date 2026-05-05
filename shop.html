@@ -9,13 +9,21 @@
 
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js"></script>
 
-<title>Morden Shop</title>
+<title>C4文具店</title>
 </head>
 
 <body>
 
-<h2>🛒 商店</h2>
+<h2>🛒 C4文具店</h2>
+
+<div id="notice"></div>
+
+<input id="couponInput" placeholder="优惠码">
+<button onclick="applyCoupon()">使用</button>
+
 <div id="products"></div>
+
+<button onclick="checkout()">结账</button>
 
 <script>
 
@@ -44,75 +52,121 @@ const analytics = getAnalytics(app);
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 
+let products = [];
 let cart = [];
+let discount = 0;
 
-// 🔥 实时监听商品（关键）
-db.collection("products").onSnapshot(snapshot=>{
+// 📢 公告
+db.collection("notices").onSnapshot(s=>{
+  document.getElementById("notice").innerText =
+    s.docs[0]?.data().text || "";
+});
+
+// 📦 商品
+db.collection("products").onSnapshot(s=>{
+  products = [];
   const div = document.getElementById("products");
-  div.innerHTML = "";
+  div.innerHTML="";
 
-  snapshot.forEach(doc=>{
+  s.forEach(doc=>{
     const p = doc.data();
     p.id = doc.id;
+    products.push(p);
+
+    let now = new Date();
+    let price = p.price;
+
+    if(p.sale && now>=new Date(p.sale.start) && now<=new Date(p.sale.end)){
+      price = p.sale.price;
+    }
 
     let disabled = "";
+    let status = "";
 
-    if(p.stock <= 0){
-      disabled = "disabled";
+    if(p.stock<=0){
+      disabled="disabled";
+      status="❌ 已售空";
+    }
+
+    if(!p.enabled){
+      disabled="disabled";
+      status="🚫 下架";
     }
 
     div.innerHTML += `
       <div>
-        <h3>${p.name}</h3>
-        <p>RM ${p.price}</p>
-        <p>库存: ${p.stock}</p>
+        <img src="${p.img}" width="100"><br>
+        ${p.name} (${p.category})<br>
+        条码:${p.barcode}<br>
+
+        ${price < p.price ? `<del>${p.price}</del>`:""} RM${price}<br>
+
+        ${status}<br>
 
         <button onclick="add('${p.id}')" ${disabled}>
-          ${p.stock<=0?"已售空":"加入购物车"}
+          ${disabled?"不可买":"加入购物车"}
         </button>
-      </div>
+      </div><hr>
     `;
   });
 });
 
+// 🎟 优惠券
+async function applyCoupon(){
+  const code = document.getElementById("couponInput").value;
+
+  const snap = await db.collection("coupons")
+    .where("code","==",code).get();
+
+  if(snap.empty){
+    alert("无效");
+    return;
+  }
+
+  const c = snap.docs[0].data();
+  let now = new Date();
+
+  if(now<new Date(c.start) || now>new Date(c.end)){
+    alert("过期");
+    return;
+  }
+
+  discount = c.discount;
+  alert("成功");
+}
+
+// 🛒 购物车
 function add(id){
-  let item = cart.find(i=>i.id===id);
-  if(item) item.qty++;
+  let i = cart.find(x=>x.id===id);
+  if(i) i.qty++;
   else cart.push({id,qty:1});
 }
 
-// 🔥 下单扣库存（核心🔥）
+// 💥 下单（扣库存）
 async function checkout(){
 
   for(let item of cart){
-
     let ref = db.collection("products").doc(item.id);
 
-    await db.runTransaction(async (t)=>{
-
-      const doc = await t.get(ref);
-      const data = doc.data();
+    await db.runTransaction(async t=>{
+      let doc = await t.get(ref);
+      let data = doc.data();
 
       if(data.stock < item.qty){
-        alert("库存不足！");
-        return;
+        throw "库存不足";
       }
 
       t.update(ref,{
         stock: data.stock - item.qty
       });
-
     });
-
   }
 
-  alert("下单成功！");
+  alert("成功");
   cart=[];
 }
 
 </script>
-
-<button onclick="checkout()">结账</button>
 
 </body>
 </html>
