@@ -13,182 +13,119 @@ body { font-family: Arial; margin:20px; }
 
 <h1>⚙️ 后台管理</h1>
 
-<!-- 商品 -->
-
-<h2>商品（带图片🔥）</h2>
+<h2>商品</h2>
 <input id="pname" placeholder="商品名">
 <input id="pprice" placeholder="价格">
-<input id="pcategory" placeholder="分类">
-<input id="pimg" type="file" accept="image/*">
-<button onclick="addProduct()">添加</button>
+<input id="pstock" placeholder="库存">
+<input id="pbarcode" placeholder="条形码">
+<input id="pimg" type="file">
+<br><br>
+
+<label>
+<input type="checkbox" id="penabled" checked> 可上架
+</label>
+
+<h3>限时优惠</h3>
+<input id="salePrice" placeholder="优惠价">
+<input type="datetime-local" id="saleStart">
+<input type="datetime-local" id="saleEnd">
+
+<br><br> <button onclick="addProduct()">添加商品</button>
 
 <div id="products"></div>
 
-<!-- 优惠券 -->
-
-<h2>优惠券（带时间）</h2>
-<input id="cname" placeholder="优惠码">
-<input id="cvalue" placeholder="折扣 0.1=10%">
+<h2>公告</h2>
+<textarea id="notice"></textarea>
 <br>
-开始时间: <input id="cstart" type="datetime-local">
-结束时间: <input id="cend" type="datetime-local">
-<button onclick="addCoupon()">添加</button>
-
-<div id="coupons"></div>
-
-<!-- 订单 -->
-
-<h2>订单</h2>
-<div id="orders"></div>
+<button onclick="saveNotice()">保存公告</button>
 
 <script>
 
 let products = JSON.parse(localStorage.getItem("products")) || [];
-let coupons = JSON.parse(localStorage.getItem("coupons")) || {};
-let orders = JSON.parse(localStorage.getItem("orders")) || [];
 
-// 保存
 function saveProducts(){
   localStorage.setItem("products", JSON.stringify(products));
 }
-function saveCoupons(){
-  localStorage.setItem("coupons", JSON.stringify(coupons));
+
+function saveNotice(){
+  localStorage.setItem("notice", document.getElementById("notice").value);
 }
 
-// 🛍 商品
+// 图片上传🔥
 function addProduct(){
   const name = document.getElementById("pname").value.trim();
   const price = parseFloat(document.getElementById("pprice").value);
-  const category = document.getElementById("pcategory").value.trim();
+  const stock = parseInt(document.getElementById("pstock").value);
+  const barcode = document.getElementById("pbarcode").value;
+  const enabled = document.getElementById("penabled").checked;
   const file = document.getElementById("pimg").files[0];
 
-  if(name === "" || isNaN(price)){
-    alert("请输入正确商品信息");
+  const salePrice = parseFloat(document.getElementById("salePrice").value);
+  const saleStart = document.getElementById("saleStart").value;
+  const saleEnd = document.getElementById("saleEnd").value;
+
+  if(name==="" || isNaN(price) || isNaN(stock)){
+    alert("填完整");
     return;
   }
 
-  // 没选图片
+  let sale = null;
+  if(!isNaN(salePrice) && saleStart && saleEnd){
+    sale = { price: salePrice, start: saleStart, end: saleEnd };
+  }
+
   if(!file){
-    saveProduct(name, price, category, "");
+    saveProduct(name,price,stock,barcode,enabled,"",sale);
     return;
   }
 
-  // 读取图片🔥
   const reader = new FileReader();
-
   reader.onload = function(e){
-    const base64 = e.target.result;
-    saveProduct(name, price, category, base64);
+    saveProduct(name,price,stock,barcode,enabled,e.target.result,sale);
   };
-
   reader.readAsDataURL(file);
 }
 
-// 保存函数（拆出来更清晰）
-function saveProduct(name, price, category, img){
+function saveProduct(name,price,stock,barcode,enabled,img,sale){
   products.push({
     id: Date.now(),
     name,
     price,
-    category,
-    img
+    stock,
+    barcode,
+    enabled,
+    img,
+    sale
   });
 
-  localStorage.setItem("products", JSON.stringify(products));
+  saveProducts();
+  renderProducts();
+}
+
+function deleteProduct(id){
+  products = products.filter(p=>p.id!==id);
+  saveProducts();
   renderProducts();
 }
 
 function renderProducts(){
-  const div = document.getElementById("products");
-  div.innerHTML = "";
+  const div=document.getElementById("products");
+  div.innerHTML="";
 
   products.forEach(p=>{
-    div.innerHTML += `
+    div.innerHTML+=`
       <div class="box">
-        <b>${p.name}</b> - RM${p.price}<br>
-        分类: ${p.category || "无"}<br>
-        ${p.img ? `<img src="${p.img}" width="100">` : "无图片"}<br><br>
-
-        <button onclick="deleteProduct(${p.id})">❌ 删除</button>
+        <b>${p.name}</b> RM${p.price}<br>
+        库存: ${p.stock}<br>
+        状态: ${p.enabled ? "上架" : "下架"}<br>
+        条码: ${p.barcode}<br>
+        ${p.sale ? "🔥 有优惠" : ""}<br>
+        <button onclick="deleteProduct(${p.id})">删除</button>
       </div>`;
   });
 }
 
-function deleteProduct(id){
-  if(!confirm("确定要删除这个商品吗？")) return;
-
-  products = products.filter(p => p.id !== id);
-
-  localStorage.setItem("products", JSON.stringify(products));
-
-  renderProducts();
-}
-
-// 🎟 优惠券
-function addCoupon(){
-  const name = document.getElementById("cname").value.trim();
-  const val = parseFloat(document.getElementById("cvalue").value);
-  const start = document.getElementById("cstart").value;
-  const end = document.getElementById("cend").value;
-
-  if(name === "" || isNaN(val) || !start || !end){
-    alert("请填完整优惠券信息");
-    return;
-  }
-
-  coupons[name] = {
-    value: val,
-    start,
-    end
-  };
-
-  saveCoupons();
-  renderCoupons();
-}
-
-function renderCoupons(){
-  const div = document.getElementById("coupons");
-  div.innerHTML = "";
-
-  Object.keys(coupons).forEach(code=>{
-    const c = coupons[code];
-
-    div.innerHTML += `
-      <div class="box">
-        <b>${code}</b> - ${c.value*100}%<br>
-        时间: ${c.start} ~ ${c.end}
-      </div>`;
-  });
-}
-
-// 📦 订单
-function renderOrders(){
-  const div = document.getElementById("orders");
-  div.innerHTML = "";
-
-  if(orders.length === 0){
-    div.innerHTML = "暂无订单";
-    return;
-  }
-
-  orders.forEach(o=>{
-    div.innerHTML += `
-      <div class="box">
-        👤 用户: ${o.name}<br>
-        🛍 商品: ${o.items.map(i=>i.name+"×"+i.qty).join(",")}<br>
-        💳 支付: ${o.payment}<br>
-        🎁 包装: ${o.wrap ? "是" : "否"}<br>
-        🎟 优惠: ${o.coupon || "无"}<br>
-        💰 总价: RM${o.total}<br>
-        🕒 时间: ${o.time}
-      </div>`;
-  });
-}
-
-// 初始化
 renderProducts();
-renderCoupons();
-renderOrders();
 
 </script>
 
