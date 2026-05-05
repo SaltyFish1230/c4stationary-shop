@@ -3,129 +3,81 @@
 <html lang="zh">
 <head>
 <meta charset="UTF-8">
+
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js"></script>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js"></script>
+
 <title>后台</title>
-<style>
-body { font-family: Arial; margin:20px; }
-.box { border:1px solid #ccc; padding:10px; margin:10px; }
-</style>
 </head>
+
 <body>
 
-<h1>⚙️ 后台管理</h1>
+<h2>后台</h2>
 
-<h2>商品</h2>
-<input id="pname" placeholder="商品名">
-<input id="pprice" placeholder="价格">
-<input id="pstock" placeholder="库存">
-<input id="pbarcode" placeholder="条形码">
-<input id="pimg" type="file">
-<br><br>
+<input id="name" placeholder="商品名">
+<input id="price" placeholder="价格">
+<input id="stock" placeholder="库存">
 
-<label>
-<input type="checkbox" id="penabled" checked> 可上架
-</label>
+<button onclick="addProduct()">添加商品</button>
 
-<h3>限时优惠</h3>
-<input id="salePrice" placeholder="优惠价">
-<input type="datetime-local" id="saleStart">
-<input type="datetime-local" id="saleEnd">
-
-<br><br> <button onclick="addProduct()">添加商品</button>
-
-<div id="products"></div>
-
-<h2>公告</h2>
-<textarea id="notice"></textarea>
-<br>
-<button onclick="saveNotice()">保存公告</button>
+<div id="list"></div>
 
 <script>
 
-let products = JSON.parse(localStorage.getItem("products")) || [];
+// Import the functions you need from the SDKs you need
+import { initializeApp } from "firebase/app";
+import { getAnalytics } from "firebase/analytics";
+// TODO: Add SDKs for Firebase products that you want to use
+// https://firebase.google.com/docs/web/setup#available-libraries
 
-function saveProducts(){
-  localStorage.setItem("products", JSON.stringify(products));
-}
+// Your web app's Firebase configuration
+// For Firebase JS SDK v7.20.0 and later, measurementId is optional
+const firebaseConfig = {
+  apiKey: "AIzaSyB4c50tn2qusku-vKS_70Aox04q7q3G0kg",
+  authDomain: "c4stationary.firebaseapp.com",
+  projectId: "c4stationary",
+  storageBucket: "c4stationary.firebasestorage.app",
+  messagingSenderId: "732705187325",
+  appId: "1:732705187325:web:15a9d0536f123fde2aa594",
+  measurementId: "G-CJG2GQK4GD"
+};
 
-function saveNotice(){
-  localStorage.setItem("notice", document.getElementById("notice").value);
-}
+// Initialize Firebase
+const app = initializeApp(firebaseConfig);
+const analytics = getAnalytics(app);
 
-// 图片上传🔥
-function addProduct(){
-  const name = document.getElementById("pname").value.trim();
-  const price = parseFloat(document.getElementById("pprice").value);
-  const stock = parseInt(document.getElementById("pstock").value);
-  const barcode = document.getElementById("pbarcode").value;
-  const enabled = document.getElementById("penabled").checked;
-  const file = document.getElementById("pimg").files[0];
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
 
-  const salePrice = parseFloat(document.getElementById("salePrice").value);
-  const saleStart = document.getElementById("saleStart").value;
-  const saleEnd = document.getElementById("saleEnd").value;
+// 添加商品
+async function addProduct(){
+  const name = document.getElementById("name").value;
+  const price = parseFloat(document.getElementById("price").value);
+  const stock = parseInt(document.getElementById("stock").value);
 
-  if(name==="" || isNaN(price) || isNaN(stock)){
-    alert("填完整");
-    return;
-  }
-
-  let sale = null;
-  if(!isNaN(salePrice) && saleStart && saleEnd){
-    sale = { price: salePrice, start: saleStart, end: saleEnd };
-  }
-
-  if(!file){
-    saveProduct(name,price,stock,barcode,enabled,"",sale);
-    return;
-  }
-
-  const reader = new FileReader();
-  reader.onload = function(e){
-    saveProduct(name,price,stock,barcode,enabled,e.target.result,sale);
-  };
-  reader.readAsDataURL(file);
-}
-
-function saveProduct(name,price,stock,barcode,enabled,img,sale){
-  products.push({
-    id: Date.now(),
+  await db.collection("products").add({
     name,
     price,
-    stock,
-    barcode,
-    enabled,
-    img,
-    sale
-  });
-
-  saveProducts();
-  renderProducts();
-}
-
-function deleteProduct(id){
-  products = products.filter(p=>p.id!==id);
-  saveProducts();
-  renderProducts();
-}
-
-function renderProducts(){
-  const div=document.getElementById("products");
-  div.innerHTML="";
-
-  products.forEach(p=>{
-    div.innerHTML+=`
-      <div class="box">
-        <b>${p.name}</b> RM${p.price}<br>
-        库存: ${p.stock}<br>
-        状态: ${p.enabled ? "上架" : "下架"}<br>
-        条码: ${p.barcode}<br>
-        ${p.sale ? "🔥 有优惠" : ""}<br>
-        <button onclick="deleteProduct(${p.id})">删除</button>
-      </div>`;
+    stock
   });
 }
 
-renderProducts();
+// 实时显示
+db.collection("products").onSnapshot(snapshot=>{
+  const div = document.getElementById("list");
+  div.innerHTML = "";
+
+  snapshot.forEach(doc=>{
+    const p = doc.data();
+
+    div.innerHTML += `
+      <div>
+        ${p.name} - RM${p.price} - 库存:${p.stock}
+      </div>
+    `;
+  });
+});
 
 </script>
 
